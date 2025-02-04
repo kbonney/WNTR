@@ -4,6 +4,7 @@ name: release
 
 on:
   push:
+    branches: [ main, dev, release2 ]
     tags:
       - '*'
 
@@ -15,6 +16,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, macos-latest, macos-13, ubuntu-latest] 
+      fail-fast: false
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
     - name: Build wheels
