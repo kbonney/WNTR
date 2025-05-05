@@ -14,3 +14,4 @@ include wntr/library/msx/*.json
 include wntr/library/msx/*.msx
 include wntr/library/DemandPatternLibrary.json
 include wntr/library/networks/*.inp
+include wntr/library/DemandPatternLibrary.json
