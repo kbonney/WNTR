@@ -108,7 +108,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'WNTR'
-copyright = u'2023 National Technology & Engineering Solutions of Sandia, LLC (NTESS)'
+copyright = u'2024 National Technology & Engineering Solutions of Sandia, LLC (NTESS)'
 author = u'WNTR Developers'
 
 bibtex_bibfiles = ['references.bib', 'citations.bib']
@@ -136,6 +136,7 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org/stable/", (None, "_local/matplotlib-objects.inv")),
     "numpy": ("https://numpy.org/doc/stable/", (None, "_local/numpy-objects.inv")),
     "pandas": ("https://pandas.pydata.org/docs/", (None, "_local/pandas-objects.inv")),
+    "geopandas": ("https://geopandas.org/en/stable/", (None, "_local/geopandas-objects.inv")),
 }
 
 # There are two options for replacing |today|: either, you set today to some
@@ -235,7 +236,7 @@ html_theme_options = {
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
-#html_title = None
+html_title = "WNTR documentation"
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #html_short_title = None
@@ -334,6 +335,11 @@ latex_elements = {
 
 # The font size ('10pt', '11pt' or '12pt').
 'pointsize': '10pt',
+
+'maketitle': r'''
+\sphinxmaketitle
+\clearpage
+''',
 
 # Additional stuff for the LaTeX preamble.
 'preamble':  r'''

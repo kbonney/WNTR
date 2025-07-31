@@ -157,7 +157,7 @@ Data can be plotted as a time series, as shown in :numref:`fig-plot-timeseries`:
 
 .. _fig-plot-timeseries:
 .. figure:: figures/plot_timeseries.png
-   :width: 640
+   :width: 535
    :alt: Time-series graph.
 
    Time series graphic showing pressure at a node.
@@ -187,7 +187,7 @@ plotted in a similar manner.
 
 .. _fig-plot-network:
 .. figure:: figures/plot_network.png
-   :width: 640
+   :width: 535
    :alt: Network graphic
 
    Network graphic showing pressure at 1 hour.
@@ -208,3 +208,19 @@ For example, DataFrames can be saved to Excel files using:
 
 .. note:: 
    The Pandas method ``to_excel`` requires the Python package **openpyxl** :cite:p:`gacl18`, which is an optional dependency of WNTR.
+
+
+Water quality results
+---------------------
+Water quality metrics are stored under the 'quality' key of the node and link results
+if the EpanetSimulator is used. The units of the quality results depend on the quality
+parameter that is used (see :ref:`_water_quality_simulation`) and can be the age,
+concentration, or the fraction of water that belongs to a tracer. If the parameter
+is set to 'NONE', then the quality results will be zero. 
+
+The quality of a link is equal to the average across the length of the link. The quality
+at a node is the instantaneous value.
+
+When using the EPANET-MSX water quality model, each species is given its own key in the
+node and link results objects, and the 'quality' results still references the EPANET
+water quality results.

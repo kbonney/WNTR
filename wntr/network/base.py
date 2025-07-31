@@ -192,6 +192,11 @@ class Node(six.with_metaclass(abc.ABCMeta, object)):
     # @leak_status.setter
     # def leak_status(self, value):
     #     self._leak_status = value
+    
+    @property
+    def leak(self):
+        """float: (read-only) the current simulation leak area at the node"""
+        return self._leak
 
     @property
     def leak_area(self):
@@ -229,19 +234,20 @@ class Node(six.with_metaclass(abc.ABCMeta, object)):
 
     @property
     def initial_quality(self):
-        """float: The initial quality (concentration) at the node"""
+        """float or dict: Initial quality (concentration) at the node, or
+        a dict of species-->quality for multi-species quality"""
         if not self._initial_quality:
             return 0.0
         return self._initial_quality
     @initial_quality.setter
     def initial_quality(self, value):
-        if value and not isinstance(value, (list, float, int)):
+        if value and not isinstance(value, (list, float, int, dict)):
             raise ValueError('Initial quality must be a float or a list')
         self._initial_quality = value
 
     @property
     def coordinates(self):
-        """tuple: The node coordinates, (x,y)"""
+        """tuple: Node coordinates, (x,y)"""
         return self._coordinates
     @coordinates.setter
     def coordinates(self, coordinates):
@@ -257,8 +263,8 @@ class Node(six.with_metaclass(abc.ABCMeta, object)):
         d['node_type'] = self.node_type
         for k in dir(self):
             if not k.startswith('_') and \
-              k not in ['demand', 'base_demand', 'head', 'leak_area', 'leak_demand',
-                        'leak_discharge_coeff', 'leak_status', 'level', 'pressure', 'quality', 'vol_curve', 'head_timeseries']:
+              k not in ['demand', 'head', 'leak_demand', 'leak_status', 
+                        'level', 'pressure', 'quality', 'vol_curve', 'head_timeseries']:
                 try:
                     val = getattr(self, k)
                     if not isinstance(val, types.MethodType):
@@ -315,6 +321,7 @@ class Link(six.with_metaclass(abc.ABCMeta, object)):
         end_node_name
         initial_status
         initial_setting
+        initial_quality
         tag
         vertices
 
@@ -348,21 +355,26 @@ class Link(six.with_metaclass(abc.ABCMeta, object)):
         # Set and register the ending node
         self._end_node = self._node_reg[end_node_name]
         self._node_reg.add_usage(end_node_name, (link_name, self.link_type))
-        # Set up other metadata fields
-        self._initial_status = LinkStatus.Opened
-        self._initial_setting = None
-        self._vertices = []
-        self._tag = None
-        # Model state variables
-        self._user_status = LinkStatus.Opened
-        self._internal_status = LinkStatus.Active
-        self._prev_setting = None
-        self._setting = None
+        # Set status variables
+        self._user_status = LinkStatus.Opened # Control status, can be changed by the user
+        self._initial_status = LinkStatus.Opened # Model initial status, can be changed by the user
+        self._internal_status = LinkStatus.Active # Intermediate simulation status, read only
+        self._status= None # Current simulation status, read only
+        # Set setting variables
+        self._initial_setting = None # Model initial setting, can be changed by the user
+        self._prev_setting = None # Previous simulation setting, read only
+        self._setting = None # Current simulation setting, read only
+        # Other model state variables
+        self._initial_quality = None
         self._flow = None
         self._velocity = None
         self._is_isolated = False
         self._quality = None
         self._headloss = None
+        # Other
+        self._vertices = []
+        self._tag = None
+        
 
     def _compare(self, other):
         """
@@ -415,6 +427,7 @@ class Link(six.with_metaclass(abc.ABCMeta, object)):
             elif isinstance(status, str): status = LinkStatus[status]
             else: status = LinkStatus(int(status))
         self._initial_status = status
+        self._user_status = status
         
     @property
     def initial_setting(self):
@@ -424,6 +437,7 @@ class Link(six.with_metaclass(abc.ABCMeta, object)):
     def initial_setting(self, setting):
         # TODO: typechecking
         self._initial_setting = setting
+        self._setting =  setting
 
     @property
     def start_node(self):
@@ -483,6 +497,18 @@ class Link(six.with_metaclass(abc.ABCMeta, object)):
                             " behavior, use initial_status.")
         # self._user_status = status
     
+    @property
+    def initial_quality(self):
+        """float or dict : a dict of species and quality if multispecies is active"""
+        if not self._initial_quality:
+            return 0.0
+        return self._initial_quality
+    @initial_quality.setter
+    def initial_quality(self, value):
+        if value and not isinstance(value, (list, float, int, dict)):
+            raise ValueError('Initial quality must be a float or a list')
+        self._initial_quality = value
+
     @property
     def quality(self):
         """float : (read-only) current simulated average link quality"""

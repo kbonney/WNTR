@@ -1,5 +1,5 @@
 # Required
-numpy>=1.21
+numpy>=1.21,<2.0
 scipy<1.13.0
 networkx
 pandas
@@ -7,11 +7,12 @@ matplotlib
 setuptools
 
 # Optional
-plotly
+plotly<6.0
 folium
 utm
 openpyxl
 geopandas
+rasterio
 rtree
 
 # Documentation

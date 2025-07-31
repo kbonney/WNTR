@@ -2,6 +2,7 @@
 import unittest
 import warnings
 from os.path import abspath, dirname, join
+import copy
 
 import wntr
 
@@ -11,15 +12,24 @@ ex_datadir = join(testdir, "..", "..", "examples", "networks")
 
 
 class TestValveSettingControls(unittest.TestCase):
-    def test_status_open_when_setting_changes(self):
+    @classmethod
+    def setUpClass(self):
         wn = wntr.network.WaterNetworkModel()
         wn.add_reservoir("r1", base_head=10)
         wn.add_junction("j1", base_demand=0)
         wn.add_junction("j2", base_demand=0.05)
         wn.add_pipe("p1", "r1", "j1")
-        wn.add_valve("v1", "j1", "j2", valve_type="PRV", initial_setting=2)
+        wn.add_valve("v1", "j1", "j2", valve_type="PRV", 
+                     initial_setting=2, initial_status='Active')
         wn.options.time.duration = 3600 * 5
-
+        self.wn = wn
+    
+    @classmethod
+    def tearDownClass(self):
+        pass
+    
+    def test_status_open_when_setting_changes(self):
+        wn = copy.deepcopy(self.wn)
         action = wntr.network.ControlAction(
             wn.get_link("v1"), "status", wntr.network.LinkStatus.Closed
         )
@@ -37,8 +47,64 @@ class TestValveSettingControls(unittest.TestCase):
         self.assertEqual(
             results.link["status"].at[7200, "v1"], wntr.network.LinkStatus.Active
         )
+    
+    def test_initial_status(self):
+        # Run simulations with open valve
+        wn = copy.deepcopy(self.wn)
+        valve_name = 'v1'
+        valve = wn.get_link(valve_name)
+        valve.initial_status = 'Open'
+        
+        sim = wntr.sim.EpanetSimulator(wn)
+        results_epanet_open = sim.run_sim()
+        
+        sim = wntr.sim.WNTRSimulator(wn)
+        results_wntr_open = sim.run_sim()
+        
+        # Check that valve is open (1) and flow is not 0
+        assert (results_epanet_open.link['status'].loc[:,'v1'] == 1).all()
+        assert (results_wntr_open.link['status'].loc[:,'v1'] == 1).all()
+        assert (results_epanet_open.link['flowrate'].loc[:,'v1'].abs() > 0).all()
+        assert (results_wntr_open.link['flowrate'].loc[:,'v1'].abs() > 0).all()
+        
+        # Run simulations with closed valve
+        wn = copy.deepcopy(self.wn)
+        valve_name = 'v1'
+        valve = wn.get_link(valve_name)
+        valve.initial_status = 'Closed'
+        
+        sim = wntr.sim.EpanetSimulator(wn)
+        results_epanet_closed = sim.run_sim()
+        
+        sim = wntr.sim.WNTRSimulator(wn)
+        results_wntr_closed = sim.run_sim()
+        
+        # Check that valve is closed (0) and flow is 0
+        assert (results_epanet_closed.link['status'].loc[:,'v1'] == 0).all()
+        assert (results_wntr_closed.link['status'].loc[:,'v1'] == 0).all()
+        assert (results_epanet_closed.link['flowrate'].loc[:,'v1'] == 0).all()
+        assert (results_wntr_closed.link['flowrate'].loc[:,'v1'] == 0).all()
 
-
+    def test_initial_setting(self):
+        # Run simulations with valve setting of 4
+        wn = copy.deepcopy(self.wn)
+        valve_name = 'v1'
+        valve = wn.get_link(valve_name)
+        # pressure setting on its downstream side when the upstream pressure is above the setting
+        valve.initial_setting = 4
+        
+        sim = wntr.sim.EpanetSimulator(wn)
+        results_epanet_open = sim.run_sim()
+        
+        sim = wntr.sim.WNTRSimulator(wn)
+        results_wntr_open = sim.run_sim()
+        
+        # Check that valve is active (2) and the downstream pressure is 4
+        assert (results_epanet_open.link['status'].loc[:,'v1'] == 2).all()
+        assert (results_wntr_open.link['status'].loc[:,'v1'] == 2).all()
+        assert (results_epanet_open.node['pressure'].loc[:,'j2'] == 4).all()
+        assert (results_wntr_open.node['pressure'].loc[:,'j2'] == 4).all()
+        
 class TestPumpSettingControls(unittest.TestCase):
     def test_status_open_when_setting_changes(self):
         wn = wntr.network.WaterNetworkModel()
@@ -102,13 +168,13 @@ class TestTimeControls(unittest.TestCase):
                     link_res["flowrate"].at[t, "pipe2"], 150 / 3600.0
                 )
                 self.assertEqual(
-                    link_res["status"].at[t, "pipe2"], self.wntr.network.LinkStatus.open
+                    link_res["status"].at[t, "pipe2"], self.wntr.network.LinkStatus.Open
                 )
             else:
                 self.assertAlmostEqual(link_res["flowrate"].at[t, "pipe2"], 0.0)
                 self.assertEqual(
                     link_res["status"].at[t, "pipe2"],
-                    self.wntr.network.LinkStatus.closed,
+                    self.wntr.network.LinkStatus.Closed,
                 )
 
 
@@ -147,14 +213,14 @@ class TestConditionalControls(unittest.TestCase):
                 self.assertAlmostEqual(link_res["flowrate"].at[t, "pump1"], 0.0)
                 self.assertEqual(
                     link_res["status"].at[t, "pump1"],
-                    self.wntr.network.LinkStatus.closed,
+                    self.wntr.network.LinkStatus.Closed,
                 )
                 count += 1
             else:
                 self.assertGreaterEqual(link_res["flowrate"].at[t, "pump1"], 0.0001)
                 self.assertEqual(
                     link_res["status"].loc[t, "pump1"],
-                    self.wntr.network.LinkStatus.open,
+                    self.wntr.network.LinkStatus.Open,
                 )
         self.assertEqual(activated_flag, True)
         self.assertGreaterEqual(count, 2)
@@ -229,20 +295,20 @@ class TestConditionalControls(unittest.TestCase):
                 self.assertGreaterEqual(results.link["flowrate"].at[t, "pipe1"], 0.002)
                 self.assertEqual(
                     results.link["status"].at[t, "pipe1"],
-                    self.wntr.network.LinkStatus.open,
+                    self.wntr.network.LinkStatus.Open,
                 )
                 count += 1
             else:
                 self.assertAlmostEqual(results.link["flowrate"].at[t, "pipe1"], 0.0)
                 self.assertEqual(
                     results.link["status"].at[t, "pipe1"],
-                    self.wntr.network.LinkStatus.closed,
+                    self.wntr.network.LinkStatus.Closed,
                 )
         self.assertEqual(activated_flag, True)
         self.assertGreaterEqual(count, 2)
         self.assertEqual(
             results.link["status"].at[results.link["status"].index[0], "pipe1"],
-            self.wntr.network.LinkStatus.closed,
+            self.wntr.network.LinkStatus.Closed,
         )  # make sure the pipe starts closed
         self.assertLessEqual(
             results.node["pressure"].at[results.node["pressure"].index[0], "tank1"],
@@ -277,7 +343,7 @@ class TestTankControls(unittest.TestCase):
                 self.assertLessEqual(results.link["flowrate"].at[t, "pipe1"], 0.0)
                 self.assertEqual(
                     results.link["status"].at[t, "pipe1"],
-                    self.wntr.network.LinkStatus.closed,
+                    self.wntr.network.LinkStatus.Closed,
                 )
                 tank_level_dropped_flag = True
         self.assertEqual(tank_level_dropped_flag, True)
@@ -384,7 +450,7 @@ class TestControlCombinations(unittest.TestCase):
         inp_file = join(test_datadir, "control_comb.inp")
         wn = self.wntr.network.WaterNetworkModel(inp_file)
         control_action = self.wntr.network.ControlAction(
-            wn.get_link("pipe1"), "status", self.wntr.network.LinkStatus.opened
+            wn.get_link("pipe1"), "status", self.wntr.network.LinkStatus.Opened
         )
         control = self.wntr.network.controls.Control._time_control(
             wn, 6 * 3600, "SIM_TIME", False, control_action
@@ -432,9 +498,9 @@ class TestControlCombinations(unittest.TestCase):
         tank1.init_level = 40.0
         tank1._head = tank1.elevation + 40.0
         pipe1 = wn.get_link("pipe1")
-        pipe1._user_status = self.wntr.network.LinkStatus.opened
+        pipe1._user_status = self.wntr.network.LinkStatus.Opened
         control_action = self.wntr.network.ControlAction(
-            wn.get_link("pipe1"), "status", self.wntr.network.LinkStatus.opened
+            wn.get_link("pipe1"), "status", self.wntr.network.LinkStatus.Opened
         )
         control = self.wntr.network.controls.Control._time_control(
             wn, 19 * 3600, "SIM_TIME", False, control_action
@@ -482,9 +548,9 @@ class TestControlCombinations(unittest.TestCase):
         tank1.init_level = 40.0
         tank1._head = tank1.elevation + 40.0
         pipe1 = wn.get_link("pipe1")
-        pipe1._user_status = self.wntr.network.LinkStatus.opened
+        pipe1._user_status = self.wntr.network.LinkStatus.Opened
         control_action = self.wntr.network.ControlAction(
-            wn.get_link("pipe1"), "status", self.wntr.network.LinkStatus.opened
+            wn.get_link("pipe1"), "status", self.wntr.network.LinkStatus.Opened
         )
         control = self.wntr.network.controls.Control._time_control(
             wn, 5 * 3600, "SIM_TIME", False, control_action
